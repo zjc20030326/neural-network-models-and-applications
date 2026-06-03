@@ -1,0 +1,284 @@
+\documentclass[oneside]{ctexart}
+\setlength{\headheight}{14pt}
+\usepackage{xcolor}
+\usepackage{enumerate}
+\usepackage{amsmath}
+\usepackage{tikz-cd}
+\usepackage{mathtools}
+\usepackage{amssymb}
+\usepackage{extarrows}
+\usepackage{amsthm}
+
+\newtheorem{definition}{定义}[section]
+\newtheorem{example}{例}[section]
+\newtheorem{theorem}{定理}[section] 
+\newtheorem{axiom}{公理}[section]
+\newtheorem{lemma}{引理}[section] 
+\newtheorem{proposition}{命题}[section] 
+\newtheorem{corollary}{推论}[section] 
+\newtheorem{remark}{注}[section]
+
+\DeclareMathOperator{\Tr}{Tr}
+\DeclareMathOperator{\tr}{tr}
+\DeclareMathOperator{\rank}{rank}
+\DeclareMathOperator{\diag}{diag}
+\DeclareMathOperator{\Ree}{Re}
+\DeclareMathOperator{\Imm}{Im}
+\DeclareMathOperator{\Ker}{Ker}
+
+\usepackage{arydshln}
+\usepackage{amsfonts} 
+\usepackage{mathrsfs} 
+\usepackage{bm}
+\usepackage[T1]{fontenc}
+\usepackage{fix-cm}
+\usepackage{lmodern}
+\usepackage{anyfontsize}
+\usepackage{graphicx}
+\usepackage[colorlinks=true, linkcolor=blue, urlcolor=blue, citecolor=blue]{hyperref}
+\usepackage{geometry}
+\geometry{
+    a4paper,
+    left=2.5cm,
+    right=2.5cm,
+    top=3cm,
+    bottom=2cm
+}
+
+\title{神经网络的模型与应用作业论文阅读笔记\\[0.6ex]
+\large  \textit{Representations of the First Hitting Time Density of an Ornstein-Uhlenbeck Process} }
+\author{}
+\date{}
+
+\begin{document}
+
+\maketitle
+
+\section{论文主要内容与整体思路}
+
+本文研究 Ornstein-Uhlenbeck（OU）过程第一次到达固定水平 $a$ 的时间
+\[
+    \sigma_a=\inf\{t>0:U_t=a\}
+\]
+的概率密度函数 $p_{x\to a}^{(\lambda)}(t)$.
+
+文章主线很清楚:
+
+\begin{enumerate}[(1)]
+    \item 先定义 OU 过程与首次到达时;
+    \item 再求首次到达时的拉普拉斯变换
+          \[
+              u_{a}^{\alpha}(x)=\mathbb{E}_x^{(\lambda)}[e^{-\alpha\sigma_a}] ;
+          \]
+    \item 然后把这个拉普拉斯变换分别反演成三种表示:
+          \begin{enumerate}[(i)]
+              \item 级数表示;
+              \item 积分表示;
+              \item Bessel bridge 表示;
+          \end{enumerate}
+    \item 最后讨论这三种表示的数值近似.
+\end{enumerate}
+
+\section{预备知识:主要定义与基本公式}
+
+\subsection{OU过程的定义}
+
+OU 过程满足随机微分方程
+\begin{equation}\label{eq:ou}
+    dU_t=dB_t-\lambda U_t\,dt,\qquad U_0=x\in\mathbb{R}.
+\end{equation}
+
+其中 $B_t$ 是标准布朗运动,$\lambda>0$.漂移项 $-\lambda U_t$ 表示过程有回到原点的趋势,因此 OU 过程是典型的均值回复过程.
+
+\subsection{首次到达时}
+对固定水平 $a$,定义首次到达时
+\[
+    \sigma_a=\inf\{t>0:U_t=a\}.
+\]
+如果它有密度,则记为
+\[
+    \mathbb{P}_x^{(\lambda)}(\sigma_a\in dt)=p_{x\to a}^{(\lambda)}(t)\,dt.
+\]
+
+\subsection{Doob变换}
+由线性随机微分方程可解得
+\[
+    U_t=e^{-\lambda t}\left(x+\int_0^t e^{\lambda s}\,dB_s\right).
+\]
+再利用时间变换,可写成
+\begin{equation}\label{eq:doob}
+    U_t=e^{-\lambda t}\bigl(x+W_{\tau(t)}\bigr),\qquad
+    \tau(t)=\frac{e^{2\lambda t}-1}{2\lambda}.
+\end{equation}
+这说明 OU 过程和布朗运动本质上联系很深,后面许多 hitting time 公式都依赖这个表示.
+
+\subsection{生成元与边值问题}
+
+OU 过程的生成元为
+\[
+    \mathcal{A}f(x)=\frac12 f''(x)-\lambda x f'(x).
+\]
+
+对拉普拉斯变换
+\[
+    u_{a}^{\alpha}(x)=\mathbb{E}_x^{(\lambda)}[e^{-\alpha\sigma_a}],
+\]
+它满足边值问题
+\begin{equation}\label{eq:sl}
+    \begin{cases}
+        \mathcal{A}u(x)=\alpha\,u(x), & x<a, \\
+        u(a)=1,                              \\
+        \lim\limits_{x\to-\infty}u(x)=0.
+    \end{cases}
+\end{equation}
+
+这一步非常关键,因为它把随机过程问题转化成了一个二阶微分方程边值问题.
+
+\subsection{拉普拉斯变换的显式公式}
+
+文章给出的核心公式是
+\begin{equation}\label{eq:laplace}
+    u_{a}^{\alpha}(x)
+    =
+    \frac{H_{-\alpha/\lambda}(-x\sqrt{\lambda})}
+    {H_{-\alpha/\lambda}(-a\sqrt{\lambda})}
+    =
+    \frac{e^{\tfrac{\lambda x^2}{2}}D_{-\alpha/\lambda}(-x\sqrt{2\lambda})}
+    {e^{\tfrac{\lambda a^2}{2}}D_{-\alpha/\lambda}(-a\sqrt{2\lambda})}.
+\end{equation}
+
+其中 $H_\nu$ 是 Hermite 函数,$D_\nu$ 是抛物柱函数.
+
+文章还给出
+\begin{equation}\label{eq:scaling}
+    p_{x\to a}^{(\lambda)}(t)
+    =
+    \lambda\,p_{x\sqrt{\lambda}\to a\sqrt{\lambda}}^{(1)}(\lambda t).
+\end{equation}
+
+故只需研究 $\lambda=1$ 的情形.
+
+\section{级数表示}
+
+\subsection{思路}
+
+这一部分的思想是:
+
+\begin{enumerate}[(1)]
+    \item 把拉普拉斯变换 $u_{a}^{\alpha}(x)$ 看成复变量 $\alpha$ 的函数;
+    \item 研究它的极点;
+    \item 再利用留数定理做反拉普拉斯变换.
+\end{enumerate}
+
+极点来自分母
+\[
+    D_{-\alpha/\lambda}(-a\sqrt{2\lambda})=0.
+\]
+设相应零点为 $\nu_1,\nu_2,\dots$,则密度可以展开成一串指数函数之和.
+
+\subsection{主要公式}
+
+级数表示为
+\begin{equation}\label{eq:series}
+    p_{x\to a}^{(\lambda)}(t)
+    =
+    -\lambda e^{\tfrac{\lambda(x^2-a^2)}{2}}
+    \sum_{j=1}^{\infty}
+    \frac{D_{\nu_{j,-a\sqrt{2\lambda}}}(-x\sqrt{2\lambda})}
+    { D^{'}_{\nu_{j,-a\sqrt{2\lambda}}}(-a\sqrt{2\lambda})|_{\nu=\nu_j}}
+    e^{-\lambda \nu_{j,-a\sqrt{2\lambda} }t}.
+\end{equation}
+
+
+\section{积分表示}
+
+\subsection{思路}
+
+这一部分是把拉普拉斯变换做解析延拓,再转成余弦反演.核心思想是:
+
+\begin{enumerate}[(1)]
+    \item 先把参数 $\alpha$ 推广到复数;
+    \item 取纯虚数参数,得到 Fourier/余弦型表示;
+    \item 再反演得到密度.
+\end{enumerate}
+
+\subsection{主要公式}
+
+文章得到
+\begin{equation}\label{eq:integral}
+    p_{x\to a}^{(\lambda)}(t)
+    =
+    \frac{2\lambda}{\pi}
+    \int_0^\infty
+    \cos(\alpha\lambda t)
+    \frac{
+        Hr_{-\alpha}(-\sqrt{\lambda}a)Hr_{-\alpha}(-\sqrt{\lambda}x)
+        +
+        Hi_{-\alpha}(-\sqrt{\lambda}x)Hi_{-\alpha}(-\sqrt{\lambda}a)
+    }{
+        \left(Hr_{-\alpha}(-\sqrt{\lambda}a)\right)^2
+        +
+        \left(Hi_{-\alpha}(-\sqrt{\lambda}a)\right)^2
+    }\,d\alpha.
+\end{equation}
+
+这里 $Hr_\alpha,Hi_\alpha$ 分别表示 Hermite 函数在纯虚参数下的实部和虚部.
+
+\section{Bessel bridge表示}
+
+\subsection{思路}
+
+这一部分采用概率方法.核心思想是:
+
+\begin{enumerate}[(1)]
+    \item 先用 Girsanov 定理把 OU 过程和布朗运动联系起来;
+    \item 再把布朗运动在首次到达条件下的路径,与三维 Bessel bridge 联系起来;
+    \item 最后把密度写成桥过程某个泛函的期望.
+\end{enumerate}
+
+\subsection{布朗运动首次到达时密度}
+
+当 $\lambda=0$ 时,有经典公式
+\begin{equation}\label{eq:bm}
+    p_{x\to a}^{(0)}(t)
+    =
+    \frac{|a-x|}{\sqrt{2\pi t^3}}
+    \exp\left(-\frac{(a-x)^2}{2t}\right).
+\end{equation}
+
+\subsection{主要公式}
+
+文章得到
+\begin{equation}\label{eq:bessel}
+    p_{x\to a}^{(\lambda)}(t)
+    =
+    e^{-\tfrac{\lambda(a^2-x^2-t)}{2}}
+    \,p_{x\to a}^{(0)}(t)\,
+    \mathbb{E}_{0\to a-x}
+    \left[
+        \exp\left(
+        -\frac{\lambda^2}{2}\int_0^t (r_s-a)^2\,ds
+        \right)
+        \right].
+\end{equation}
+
+其中 $r_s$ 是从 $0$ 到 $a-x$ 的三维 Bessel bridge.
+
+
+\section{数值近似的基本思路}
+
+文章最后比较了三种数值方法:
+
+\begin{enumerate}[(1)]
+    \item \textbf{级数法}:截断 \eqref{eq:series} 的前若干项;
+    \item \textbf{积分法}:对 \eqref{eq:integral} 做数值积分;
+    \item \textbf{Monte Carlo 法}:对 \eqref{eq:bessel} 中的 Bessel bridge 泛函做模拟.
+\end{enumerate}
+
+总体上:
+
+\begin{itemize}
+    \item 级数法和积分法属于解析方法,精度较高;
+    \item Bessel bridge 方法属于概率方法,更灵活,但数值误差通常更大.
+\end{itemize}
+\end{document}

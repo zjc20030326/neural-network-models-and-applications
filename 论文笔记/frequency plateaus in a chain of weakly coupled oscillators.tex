@@ -1,0 +1,304 @@
+\documentclass[oneside]{ctexart}
+\setlength{\headheight}{14pt}
+\usepackage{xcolor}
+\usepackage{enumerate}
+\usepackage{amsmath}
+\usepackage{tikz-cd}
+\usepackage{mathtools}
+\usepackage{amssymb}
+\usepackage{extarrows}
+\usepackage{amsthm}
+
+\newtheorem{definition}{定义}[section]
+\newtheorem{example}{例}[section]
+\newtheorem{theorem}{定理}[section]
+\newtheorem{axiom}{公理}[section]
+\newtheorem{lemma}{引理}[section]
+\newtheorem{proposition}{命题}[section]
+\newtheorem{corollary}{推论}[section]
+\newtheorem{remark}{注}[section]
+
+\DeclareMathOperator{\Tr}{Tr}
+\DeclareMathOperator{\tr}{tr}
+\DeclareMathOperator{\rank}{rank}
+\DeclareMathOperator{\diag}{diag}
+\DeclareMathOperator{\Ree}{Re}
+\DeclareMathOperator{\Imm}{Im}
+\DeclareMathOperator{\Ker}{Ker}
+\DeclareMathOperator{\Span}{span}
+
+\usepackage{arydshln}
+\usepackage{amsfonts}
+\usepackage{mathrsfs}
+\usepackage{bm}
+\usepackage[T1]{fontenc}
+\usepackage{fix-cm}
+\usepackage{lmodern}
+\usepackage{anyfontsize}
+\usepackage{graphicx}
+\usepackage[colorlinks=true, linkcolor=blue, urlcolor=blue, citecolor=blue]{hyperref}
+\usepackage{geometry}
+\geometry{
+    a4paper,
+    left=2.5cm,
+    right=2.5cm,
+    top=3cm,
+    bottom=2cm
+}
+\newcommand{\dd}{\mathrm{d}}
+\newcommand{\eps}{\varepsilon}
+
+\title{神经网络的模型与应用作业论文阅读笔记\\[0.6ex]
+\large \textit{Frequency Plateaus in a Chain of Weakly Coupled Oscillators, I}}
+\author{}
+\date{}
+
+\begin{document}
+
+\maketitle
+
+\section{论文基本信息与研究背景}
+
+本文作者为 George Bard Ermentrout 和 Nancy Kopell, 发表在 \textit{SIAM Journal on Mathematical Analysis}. 文章研究一维链状弱耦合振子系统中的 frequency plateaus, 即频率平台现象.
+
+频率平台指的是: 虽然各个振子的自然频率沿空间位置逐渐变化, 但耦合后某一段连续振子会以几乎相同的频率运动, 另一段振子以另一种频率运动, 两段之间出现频率跳跃. 这种现象受到哺乳动物小肠慢波电活动的启发. 在小肠中, 单独切片后的组织会有不同的自然频率, 但完整组织中测得的频率常呈分段常数形状.
+
+文章的目标是用弱耦合振子链和相位方程解释这种现象. 它不是直接做数值模拟, 而是从相位约化, 不变环面, 稳定平衡点消失和不变圆出现这些动力系统结构出发, 给出频率平台存在的数学机制.
+
+\section{原始弱耦合振子模型}
+
+\subsection{链状耦合系统}
+
+文章考虑 $n+1$ 个弱耦合振子. 第 $k$ 个振子满足
+
+\begin{equation}
+    X_k'=F_k(X_k,\eps),
+\end{equation}
+
+其中当 $\eps=0$ 时, 每个振子都有稳定极限环. 完整耦合系统可写成
+
+\begin{equation}
+    X_k'=F_k(X_k)+\eps D(X_{k+1}-2\gamma X_k+X_{k-1}),
+    \qquad X_0=X_{n+2}=0.
+\end{equation}
+
+这里 $\eps\ll 1$ 表示弱耦合强度, $D$ 是局部变量之间的耦合矩阵. 当 $\gamma=1$ 时, 耦合类似扩散耦合; 当 $\gamma=0$ 时, 更接近某些直接电耦合形式.
+
+设第 $k$ 个未耦合振子的自然频率为 $\omega_k$, 且不同振子之间的频率差是 $O(\eps)$ 量级. 这正是弱耦合相位约化适用的情形.
+
+\subsection{不变环面的出现}
+
+当 $\eps=0$ 时, 每个振子都在自己的极限环上运动, 所以整体系统的相空间中存在一个 $(n+1)$ 维环面, 即各个极限环的直积. 由于每个极限环横向指数稳定, 该环面是 normally hyperbolic 的. 因此当 $\eps$ 足够小时, 这个不变环面仍然存在.
+
+在这个不变环面上, 可以用相位变量
+
+\begin{equation}
+    \theta_1,\theta_2,\dots,\theta_{n+1}
+\end{equation}
+
+描述系统运动. 再令相邻相位差为
+
+\begin{equation}
+    \phi_k=\theta_{k+1}-\theta_k,
+    \qquad k=1,2,\dots,n.
+\end{equation}
+
+于是原来的高维振子链问题被约化为 $n$ 个相位差变量的动力系统.
+
+\section{相位差方程}
+
+\subsection{一般相位方程}
+
+在不变环面上, 文章得到如下相位方程的近似形式:
+
+\begin{equation}
+    \dot{\theta}_1=\omega_1+\eps H(\phi_1)+O(\eps^2),
+\end{equation}
+
+\begin{equation}
+    \dot{\phi}_k
+    =\eps\left[A_k+H(\phi_{k+1})+H(-\phi_k)-H(\phi_k)-H(-\phi_{k-1})\right]+O(\eps^2).
+\end{equation}
+
+这里 $H$ 是 $2\pi$ 周期函数, 它包含了耦合矩阵 $D$, 耦合形式以及单个振子极限环附近动力学的信息. 换句话说, 原来复杂的振子模型在一阶近似下被编码到一个相位耦合函数 $H$ 中.
+
+\subsection{H 为奇函数时的简化}
+
+文章主要研究 $H$ 为奇函数的情形. 若 $H(-\phi)=-H(\phi)$, 并引入慢时间 $\tau=\eps t$, 则相位差方程可写成
+
+\begin{equation}
+    \dfrac{\dd \Phi}{\dd \tau}=\beta A+K H(\Phi),
+\end{equation}
+
+其中
+
+\begin{equation}
+    \Phi=(\phi_1,
+\dots,
+\phi_n)^T,
+    \qquad
+    H(\Phi)=(H(\phi_1),
+\dots,H(\phi_n))^T.
+\end{equation}
+
+矩阵 $K$ 是三对角矩阵, 主对角线为 $-2$, 上下相邻对角线为 $1$:
+
+\begin{equation}
+    K=
+    \begin{pmatrix}
+        -2&1&0&\cdots&0\\
+        1&-2&1&\cdots&0\\
+        0&1&-2&\cdots&0\\
+        \vdots&\vdots&\vdots&\ddots&1\\
+        0&0&0&1&-2
+    \end{pmatrix}.
+\end{equation}
+
+参数 $\beta$ 用来衡量 detuning, 即自然频率梯度的强弱. 当 $\beta$ 小时, 振子之间容易锁相; 当 $\beta$ 大时, 自然频率差太大, 锁相会被破坏.
+
+\section{锁相与频率平台}
+
+\subsection{锁相对应稳定平衡点}
+
+在相位差系统中, 一个稳定平衡点
+
+\begin{equation}
+    \Phi^*=(\phi_1^*,
+\dots,
+\phi_n^*)
+\end{equation}
+
+表示所有相邻相位差都固定. 这对应原系统中所有振子以同一个频率运动, 即 phase-locking.
+
+文章证明, 当 $\beta$ 足够小时, 系统存在唯一稳定平衡点. 这时链上所有振子锁到同一频率. 若自然频率梯度继续增大, 这个稳定平衡点会与一个鞍点相撞并消失. 这类似 saddle-node bifurcation, 但之后出现的结构不是小振幅 Hopf 周期轨道, 而是一个大尺度不变圆.
+
+\subsection{主定理的含义}
+
+文章重点考虑线性频率梯度, 即
+
+\begin{equation}
+    A=-(1,1,
+\dots,1)^T,
+\end{equation}
+
+并假设 $n=2j-1$. 在临界值 $\beta_0$ 附近, 稳定平衡点与一个鞍点发生碰撞. 文章证明, 鞍点不稳定流形的两支闭包形成一个光滑吸引不变圆, 并且这个不变圆的同伦类等价于
+
+\begin{equation}
+    \phi_k=0\quad (k\neq j),
+    \qquad
+    0\leq \phi_j\leq 2\pi.
+\end{equation}
+
+这说明只有第 $j$ 个相位差方向发生完整绕行, 而其他相位差方向回到原处. 这个拓扑信息正是频率平台中 ``跳跃位置'' 的数学表达.
+
+\begin{remark}
+    不变圆的同伦类很关键. 如果绕行发生在 $\phi_j$ 方向, 就说明频率跳跃出现在第 $j$ 个和第 $j+1$ 个振子之间.
+\end{remark}
+
+\section{为什么不变圆对应频率平台}
+
+\subsection{频率的定义}
+
+对于耦合振子, 文章把第 $k$ 个振子的频率定义为相位长期平均增长率:
+
+\begin{equation}
+    \Omega_k=\lim_{T\to\infty}\dfrac{\theta_k(T)-\theta_k(0)}{T},
+\end{equation}
+
+如果该极限存在, 它就刻画了长期平均频率.
+
+相邻振子的频率差可以由相位差的长期变化给出:
+
+\begin{equation}
+    \Omega_{k+1}-\Omega_k
+    =\lim_{T\to\infty}\dfrac{\phi_k(T)-\phi_k(0)}{T}.
+\end{equation}
+
+\subsection{平台内部频率相同}
+
+在吸引不变圆上, 对 $k\neq j$, $\phi_k$ 经过一个周期后回到原值, 所以
+
+\begin{equation}
+    \Omega_{k+1}-\Omega_k=0,
+    \qquad k\neq j.
+\end{equation}
+
+这说明在第 $1$ 到第 $j$ 个振子之间频率相同, 在第 $j+1$ 到第 $n+1$ 个振子之间频率也相同. 因此系统形成两个 frequency plateaus.
+
+但是对 $k=j$, 相位差 $\phi_j$ 会在一个周期中绕行一次, 即提升到覆盖空间后满足
+
+\begin{equation}
+    \phi_j(T_0)=\phi_j(0)+2\pi.
+\end{equation}
+
+于是两段平台之间的频率跳跃为
+
+\begin{equation}
+    \Omega_{j+1}-\Omega_j=\dfrac{2\pi\eps}{T_0},
+\end{equation}
+
+其中 $T_0$ 是慢时间系统中不变圆轨道的周期.
+
+\subsection{平台不是严格瞬时锁相}
+
+文章强调, 平台内部的相位差不一定是常数, 而是周期性变化. 因此这些振子不是每一时刻都保持固定相位差, 而是在平均频率意义下锁在一起. 有些文献称这种现象为 phase-trapping.
+
+这点很重要. Frequency plateau 不是说每个振子波形完全同步, 而是说长期平均频率在一段区间内相同.
+
+\section{\texorpdfstring{$H=\sin\phi$}{H=sin(phi)} 情形与临界梯度}
+
+当
+
+\begin{equation}
+    H(\phi)=\sin\phi
+\end{equation}
+
+时, 文章给出频率平台出现的临界值
+
+\begin{equation}
+    \beta_0=\dfrac{2}{j^2}=\dfrac{8}{(n+1)^2}.
+\end{equation}
+
+这说明当振子数 $n+1$ 很大时, 临界 detuning 会变小. 换句话说, 在相同总频率差下, 链越长越不容易整体锁相, 更容易出现局部频率平台.
+
+在 $\beta$ 接近 $\beta_0$ 时, 不变圆周期 $T_0$ 会趋于无穷大, 所以频率跳跃
+
+\begin{equation}
+    \dfrac{2\pi\eps}{T_0}
+\end{equation}
+
+会趋于 $0$. 当 $\beta$ 继续增大, 数值计算显示会出现更多平台. 文章猜测, 若出现 $k+1$ 个平台, 可能对应一个 $k$ 维不变环面.
+
+\section{各向异性耦合与非均匀耦合}
+
+文章后面还讨论了 anisotropic coupling 和 nonuniform coupling. 这些修改会影响锁相频率和平台位置.
+
+在最对称的情形下, 即 $H$ 为奇函数, 耦合均匀且各向同性, 自然频率为线性梯度, 锁相频率等于自然频率的平均值. 如果出现两个平台, 它们也会关于平均频率较对称地分布.
+
+但生理数据中常观察到平台整体位于自然频率曲线上方. 文章指出, 仅靠奇函数 $H$ 和均匀各向同性耦合无法解释这一点. 要解释更真实的小肠数据, 需要考虑非奇的 $H$ 或更复杂的耦合结构. 这也是后续论文继续研究的方向.
+
+\section{个人理解与评价}
+
+\subsection{本文的主要贡献}
+
+我认为本文的主要贡献有三点:
+
+\begin{enumerate}[(1)]
+    \item 它把复杂的弱耦合振子链约化为相位差方程, 使频率平台问题变成有限维环面上的动力系统问题.
+    \item 它解释了从整体锁相到局部频率平台的转变机制: 稳定平衡点消失后出现大尺度吸引不变圆.
+    \item 它用不变圆的同伦类解释频率跳跃的位置, 这是一个很漂亮的拓扑观点.
+\end{enumerate}
+
+\subsection{本文的数学难点}
+
+文章真正困难的地方在第 3 节. 作者需要构造一个大区域, 证明不稳定流形的两支闭包形成吸引不变圆. 这不是局部线性化就能得到的, 因为不变圆是大尺度对象. 此外, 证明还要用到附录中关于 $KA$ 型矩阵特征值的代数结论.
+
+\subsection{本文的局限}
+
+本文主要处理 $H$ 为奇函数, 耦合相对规则的情形. 这种假设使数学分析比较清楚, 但也限制了对真实生理数据的解释能力. 文章自己也指出, 若要解释平台整体高于自然频率曲线的现象, 需要考虑非奇的相位耦合函数或更复杂的模型.
+
+\subsection{我的整体理解}
+
+这篇文章给我的最大启发是, 频率平台不是简单的 ``几个振子碰巧频率相同'', 而是相位差系统中不变结构的结果. 当自然频率梯度较小时, 系统有稳定平衡点, 对应全局锁相; 当梯度超过阈值后, 平衡点消失, 但系统不是完全失去组织, 而是转入由不变圆支配的平均锁相状态, 从而形成两个频率平台.
+
+\end{document}

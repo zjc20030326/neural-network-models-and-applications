@@ -1,0 +1,502 @@
+\documentclass[oneside]{ctexart}
+\setlength{\headheight}{14pt}
+\usepackage{xcolor}
+\usepackage{enumerate}
+\usepackage{amsmath}
+\usepackage{tikz-cd}
+\usepackage{mathtools}
+\usepackage{amssymb}
+\usepackage{extarrows}
+\usepackage{amsthm}
+
+\newtheorem{definition}{定义}[section]
+\newtheorem{example}{例}[section]
+\newtheorem{theorem}{定理}[section]
+\newtheorem{axiom}{公理}[section]
+\newtheorem{lemma}{引理}[section]
+\newtheorem{proposition}{命题}[section]
+\newtheorem{corollary}{推论}[section]
+\newtheorem{remark}{注}[section]
+
+\DeclareMathOperator{\Tr}{Tr}
+\DeclareMathOperator{\tr}{tr}
+\DeclareMathOperator{\rank}{rank}
+\DeclareMathOperator{\diag}{diag}
+\DeclareMathOperator{\Ree}{Re}
+\DeclareMathOperator{\Imm}{Im}
+\DeclareMathOperator{\Ker}{Ker}
+
+\usepackage{arydshln}
+\usepackage{amsfonts}
+\usepackage{mathrsfs}
+\usepackage{bm}
+\usepackage[T1]{fontenc}
+\usepackage{fix-cm}
+\usepackage{lmodern}
+\usepackage{anyfontsize}
+\usepackage{graphicx}
+\usepackage[colorlinks=true, linkcolor=blue, urlcolor=blue, citecolor=blue]{hyperref}
+\usepackage{geometry}
+\geometry{
+    a4paper,
+    left=2.5cm,
+    right=2.5cm,
+    top=3cm,
+    bottom=2cm
+}
+
+\title{神经网络的模型与应用作业论文阅读笔记\\[0.6ex]
+\large \textit{Learning and Inference with Correlated Neural Variability}}
+\author{}
+\date{}
+
+\begin{document}
+
+\maketitle
+
+\section{论文主要内容与整体思路}
+
+本文研究带有 correlated neural variability 的 spiking neural network, 即 SNN, 如何进行学习与推断. 传统的 SNN 训练方法大多面向无噪声或弱噪声情形, 例如 ANN-to-SNN conversion 和 backpropagation-through-time. 但是在真实大脑中, 神经活动本身具有明显的随机性, 不同神经元之间还存在弱相关的共同波动. 因此, 如果要构造更接近生物神经系统的计算模型, 就不能只考虑平均 firing rate, 还要同时考虑 firing variability 和 pairwise correlation.
+
+文章的核心思想是提出 stochastic neural computing, 即 SNC, 并通过 moment closure 将 SNN 中高维的概率分布传播问题转化为一组关于一阶矩和二阶矩的确定性映射. 由此得到 moment neural network, 即 MNN. MNN 可以看作 rate-based ANN 的二阶矩推广, 它不仅传播平均 firing rate, 还传播 firing covariability.
+
+文章主线可以概括为以下几步:
+
+\begin{enumerate}[(1)]
+    \item 先从概率角度重新解释 spike-based neural computation, 将神经群体的 spike count 看成随机变量.
+    \item 再说明直接处理完整联合分布 $p(n)$ 在高维情况下不可行, 因此引入 moment closure.
+    \item 通过 moment closure 构造 MNN, 用 mean firing rate $\mu$ 和 covariance matrix $C$ 描述神经群体状态.
+    \item 将传统深度学习中的 synaptic summation, activation, batch normalization 和 loss function 推广到二阶矩形式.
+    \item 用 MNN 进行 gradient-based learning, 训练完成后再把参数直接映射回 SNN, 无需额外 fine-tuning.
+    \item 最后通过 MNIST 分类任务和 Loihi neuromorphic hardware 实验说明该方法可以学习任务, 表达不确定性, 并利用相关变异提高推断速度.
+\end{enumerate}
+
+从整体上看, 这篇文章不是单纯提出一个新的网络结构, 而是试图建立一个从随机脉冲神经网络到连续值神经网络之间的统一框架.
+
+\section{随机神经计算的概率解释}
+
+\subsection{神经活动状态的概率表示}
+
+文章首先把神经计算看成一个概率传播过程. 设外界刺激为 $x$, 隐变量或特征为 $s$, 第 $k$ 层神经群体的 spike count 为 $n_k$, 最终读出变量为 $y$. 在这个框架中, 每一层神经群体状态都不是一个确定向量, 而是一个随机变量.
+
+第 $k$ 层的神经活动分布可以由前一层的分布通过边缘化得到:
+
+\begin{equation}
+    p(n_k\mid x)
+    =
+    \int\limits p(n_k\mid n_{k-1})p(n_{k-1}\mid x)\,dn_{k-1}.
+\end{equation}
+
+不断迭代这个关系, 就可以得到读出变量 $y$ 关于输入 $x$ 的条件分布:
+
+\begin{equation}
+    p(y\mid x)
+    =
+    \int\limits
+    p(y\mid n_K)
+    \prod\limits_{k=1}^{K}p(n_k\mid n_{k-1})
+    p(n_0\mid x)\,
+    dn_0\cdots dn_K.
+\end{equation}
+
+这两个公式说明, SNC 的基本计算对象不是单个确定的 firing rate, 而是神经群体 spike count 的概率分布. 每一层的神经网络操作本质上都是对概率分布的变换.
+
+\subsection{监督学习中的损失函数}
+
+在这个概率框架下, 学习的目标是调节参数 $\theta$, 使模型产生的分布 $p(y\mid x;\theta)$ 尽量接近目标分布.
+
+对于 regression 问题, 可以使用 negative log-likelihood:
+
+\begin{equation}
+    \mathcal{L}(\theta)
+    =
+    -\sum\limits_{x\in D}
+    \log p(y^*\mid x;\theta).
+\end{equation}
+
+其中 $y^*$ 是目标输出.
+
+对于 classification 问题, 设 $D_i$ 表示所有使第 $i$ 类输出最大的区域, 即
+
+\[
+    D_i=\{y:y_i=\max\limits_j y_j\}.
+\]
+
+模型预测为第 $i$ 类的概率定义为
+
+\begin{equation}
+    q_i(\theta)
+    =
+    \int\limits p(y\mid x;\theta)\mathbf{1}_{D_i}(y)\,dy.
+\end{equation}
+
+若真实标签为 $t$, 则分类损失函数为
+
+\begin{equation}
+    \mathcal{L}(\theta)
+    =
+    -\sum\limits_{x\in D}\log q_t
+    =
+    -\sum\limits_{x\in D}
+    \log
+    \left(
+    \int\limits p(y\mid x;\theta)\mathbf{1}_{D_t}(y)\,dy
+    \right).
+\end{equation}
+
+这个公式可以看成传统 cross entropy 的概率推广. 它的含义是, 网络不仅要让平均输出指向正确类别, 还要让 trial-to-trial variability 尽量小, 使每一次随机推断都有较大概率得到正确结果.
+
+\section{Moment Closure 与 Moment Neural Network}
+
+\subsection{为什么需要 moment closure}
+
+完整的联合分布 $p(n_k\mid x)$ 维度很高, 直接计算几乎不可行. 文章采用 moment closure 思想, 即不追踪完整分布, 而只追踪一阶矩和二阶矩.
+
+对 spike count $n(\Delta t)$, 定义
+
+\begin{equation}
+    n(\Delta t)
+    =
+    \int_0^{\Delta t}S(t')\,dt',
+\end{equation}
+
+其中 $S(t)$ 表示 spike train. 平均 firing rate 定义为
+
+\begin{equation}
+    \mu
+    =
+    \lim\limits_{\Delta t\to\infty}
+    \dfrac{\mathbb{E}[n(\Delta t)]}{\Delta t}.
+\end{equation}
+
+firing covariability 定义为
+
+\begin{equation}
+    C
+    =
+    \lim\limits_{\Delta t\to\infty}
+    \dfrac{\operatorname{Cov}[n(\Delta t),n(\Delta t)]}{\Delta t}.
+\end{equation}
+
+于是一个神经群体的状态可以由 $(\mu,C)$ 近似描述. 这里 $\mu$ 是均值向量, $C$ 是协方差矩阵. 这一步把高维概率分布问题降维成了有限维矩阵计算问题.
+
+\subsection{MNN 的基本思想}
+
+MNN 的核心是用如下映射代替完整的概率传播:
+
+\begin{equation}
+    (\mu_{k-1},C_{k-1})
+    \longmapsto
+    (\mu_k,C_k).
+\end{equation}
+
+这说明 MNN 的每一层不只输出一个向量, 而是同时输出均值和协方差. 因而 MNN 可以看作 ANN 的二阶矩扩展:
+
+\begin{center}
+    ANN: 只传播 mean firing rate.
+
+    MNN: 同时传播 mean firing rate 和 firing covariability.
+\end{center}
+
+文章强调, 训练完成后的 MNN 参数可以直接用于恢复对应的 SNN, 不需要额外调参. 这使 MNN 成为 ANN 与 SNN 之间的桥梁.
+
+\section{MNN 的基本模块}
+
+\subsection{Synaptic summation}
+
+在 SNN 中, 突触求和是用权重矩阵 $W$ 对 presynaptic spike train 进行线性变换. 在 MNN 中, 它对应于均值与协方差的同步传播.
+
+均值传播为
+
+\begin{equation}
+    \hat{\mu}
+    =
+    W\mu+\mu_{\mathrm{ext}}.
+\end{equation}
+
+协方差传播为
+
+\begin{equation}
+    \hat{C}
+    =
+    WCW^{\mathrm T}+C_{\mathrm{ext}}.
+\end{equation}
+
+这与普通 rate model 的区别在于, 同一个权重矩阵 $W$ 不仅改变平均输入, 还改变输入波动的相关结构. 即使 presynaptic spike trains 是不相关的, 经过共同突触输入后, postsynaptic currents 也可能变得相关.
+
+\subsection{Moment activation}
+
+普通 ANN 中的 activation function 是点态非线性函数, 例如 ReLU 或 sigmoid. 但在 SNN 中, 神经元接收的是带噪声的 synaptic currents, 输出的是随机 spike train. 因此 activation 不应只作用在均值上, 还要同时作用在方差和协方差上.
+
+文章把这个映射称为 moment activation, 写作
+
+\begin{equation}
+    (\mu,C)
+    =
+    \phi(\bar{\mu},\bar{C}).
+\end{equation}
+
+其中 $\bar{\mu}$ 和 $\bar{C}$ 是归一化后的输入电流矩, $\mu$ 和 $C$ 是输出 spike count 的矩.
+
+对于单个 LIF 神经元, moment activation 主要由三个量决定:
+
+\begin{enumerate}[(1)]
+    \item mean firing rate, 记为 $\mu_i$.
+    \item firing variability, 记为 $\sigma_i$.
+    \item linear response coefficient, 记为 $\chi_i$.
+\end{enumerate}
+
+可以概括写成
+
+\begin{equation}
+    \mu_i=F(\bar{\mu}_i,\bar{\sigma}_i),
+    \qquad
+    \sigma_i=G(\bar{\mu}_i,\bar{\sigma}_i),
+    \qquad
+    \chi_i=H(\bar{\mu}_i,\bar{\sigma}_i).
+\end{equation}
+
+对于不同神经元之间的协方差, 线性响应近似给出
+
+\begin{equation}
+    C_{ij}
+    =
+    \chi_i\chi_j\bar{C}_{ij},
+    \qquad i\neq j.
+\end{equation}
+
+这个公式说明, 神经元的非线性放电机制会把输入电流的相关性转化为输出 spike count 的相关性. 因此, correlated variability 不是额外添加的噪声, 而是网络计算过程中自然传播和变换的对象.
+
+\subsection{Moment batch normalization}
+
+深层网络中, 如果输入过大或过小, activation 可能进入饱和区或消失区, 从而导致梯度传播困难. 普通 ANN 使用 batch normalization 缓解这个问题. 本文将其推广为 moment batch normalization, 即 MBN.
+
+对均值可写为
+
+\begin{equation}
+    \bar{\mu}_i
+    =
+    \gamma_i
+    \dfrac{\hat{\mu}_i-m_i}{\sqrt{q_i+\varepsilon}}
+    +
+    \beta_i.
+\end{equation}
+
+对协方差可写为
+
+\begin{equation}
+    \bar{C}_{ij}
+    =
+    \gamma_i\gamma_j
+    \dfrac{\hat{C}_{ij}}
+    {\sqrt{q_i+\varepsilon}\sqrt{q_j+\varepsilon}}.
+\end{equation}
+
+其中 $m_i$ 和 $q_i$ 表示 batch 统计量, $\gamma_i$ 和 $\beta_i$ 是可训练参数. MBN 的重要特点是均值和方差共享同一个 normalization factor, 因此它仍然可以解释为对 SNN 中 postsynaptic current 的 scaling 和 biasing.
+
+训练完成后, 这些 scaling 和 bias 参数可以重新吸收到突触权重和外部输入中:
+
+\begin{equation}
+    W_{ij}^{\mathrm{new}}
+    =
+    \dfrac{\gamma_i}{\sqrt{q_i+\varepsilon}}W_{ij}.
+\end{equation}
+
+\begin{equation}
+    \mu_{\mathrm{ext},i}^{\mathrm{new}}
+    =
+    \dfrac{\gamma_i}{\sqrt{q_i+\varepsilon}}
+    (\mu_{\mathrm{ext},i}-m_i)
+    +
+    \beta_i.
+\end{equation}
+
+这也是 MNN 能够恢复为 SNN 的关键原因之一.
+
+\section{Moment Loss Functions}
+
+\subsection{Moment mean squared error}
+
+对 regression 问题, 文章基于 maximum likelihood 推导出 moment mean squared error, 即 MMSE. 若输出近似服从均值为 $\mu$、协方差为 $C$ 的高斯分布, 则损失函数可以写为
+
+\begin{equation}
+    \mathcal{L}_{\mathrm{MMSE}}
+    =
+    (\mu-y^*)^{\mathrm T}C^{-1}(\mu-y^*)\Delta t
+    +
+    \log\det\left(
+        \dfrac{2\pi}{\Delta t}C
+    \right).
+\end{equation}
+
+第一项衡量输出均值与目标值之间的偏差, 对应 systematic error. 第二项衡量输出分布的不确定性, 对应 random error. 因此, MMSE 不只是让预测均值正确, 还会促使模型降低预测方差.
+
+当 $C=I_n$ 时, 该损失退化为普通 mean squared error 的形式.
+
+\subsection{Moment cross entropy}
+
+对 classification 问题, 文章提出 moment cross entropy, 即 MCE. 设读出变量近似满足
+
+\begin{equation}
+    y
+    =
+    \mu+\dfrac{1}{\sqrt{\Delta t}}Lz,
+    \qquad
+    LL^{\mathrm T}=C,
+    \qquad
+    z\sim\mathcal{N}(0,I_n).
+\end{equation}
+
+令 $\sigma_t(y;\beta)$ 表示带温度参数 $\beta$ 的 softmax 函数在正确类别 $t$ 上的输出, 则 MCE 可以近似写为
+
+\begin{equation}
+    \mathcal{L}_{\mathrm{MCE}}
+    =
+    -\log
+    \left(
+        \dfrac{1}{N_s}
+        \sum\limits_{n=1}^{N_s}
+        \sigma_t
+        \left(
+            \mu+\dfrac{1}{\sqrt{\Delta t}}Lz_n;\beta
+        \right)
+    \right).
+\end{equation}
+
+其中 $N_s$ 是 Monte Carlo 采样数. 当 $\Delta t\to\infty$ 时, 随机项趋于消失, MCE 退化为普通 cross entropy. 因此, 传统 ANN 中的 cross entropy 可以看作 MCE 在无限读出时间下的特殊情况.
+
+这一点很重要. 在普通 ANN 中, softmax 输出常被解释成概率, 但这种解释并没有真实随机过程支撑. 在本文框架下, 概率来自 spike count 的 trial-to-trial variability, 因而分类概率有更明确的神经动力学含义.
+
+\section{MNIST 分类实验与相关变异的作用}
+
+\subsection{实验设置}
+
+文章用 MNIST handwritten digit classification 作为示例任务. 网络采用 fully connected feedforward MNN, 输入层使用 Poisson-rate encoding, 隐藏层用 moment activation, 最后通过 linear readout 得到分类变量.
+
+训练目标是最大化正确分类概率, 即最小化 MCE. 训练完成后, MNN 的权重可以直接映射到 SNN 中进行脉冲神经网络推断.
+
+\subsection{主要结果}
+
+文章报告, 当读出时间 $\Delta t\to\infty$ 时, 模型在验证集上的分类准确率达到 $98.45\%$, 与普通 rate-based ANN 的性能相近.
+
+更重要的是, 当 $\Delta t$ 有限时, 网络仍然能保持较高正确预测概率. 这说明模型不仅学习了正确的平均输出, 还学习了如何控制输出不确定性.
+
+训练后的隐藏层神经元表现出较真实的生物神经统计特征:
+
+\begin{enumerate}[(1)]
+    \item firing rate 呈宽分布, 不同神经元响应强弱差别明显.
+    \item Fano factor 也呈宽分布, 既有 mean-dominant neurons, 也有 fluctuation-dominant neurons.
+    \item pairwise correlation 整体较弱, 但训练后相关结构出现较慢衰减的尾部.
+\end{enumerate}
+
+这说明训练得到的网络不是简单地把噪声压到零, 而是在任务需求下组织出有结构的 correlated variability.
+
+\subsection{相关变异如何帮助推断}
+
+文章中特别有意思的一点是, correlated variability 不一定是有害的. 对某些神经元对来说, 它们的 spike count covariance ellipse 可能与 readout direction 近似正交. 这样一来, 虽然神经活动本身仍然有波动, 但这些波动不会明显影响最终分类方向, 反而可能降低 readout variance.
+
+从几何上可以这样理解. 设某一对神经元的 spike count 均值为 $\mu$, 协方差为 $C$, 读出方向为 $w$. 则沿读出方向的方差为
+
+\begin{equation}
+    \operatorname{Var}(w^{\mathrm T}n)
+    =
+    w^{\mathrm T}Cw.
+\end{equation}
+
+如果 $C$ 的主轴方向与 $w$ 近似正交, 则 $w^{\mathrm T}Cw$ 较小. 这意味着神经活动可以在某些方向上保持较大波动, 同时不破坏最终决策. 这种结构化噪声就是本文强调的 functional role of correlated variability.
+
+\section{推断速度与神经形态硬件}
+
+\subsection{推断速度}
+
+在随机脉冲网络中, 读出时间 $\Delta t$ 越长, spike count 的统计估计越稳定, 但推断速度越慢. 反过来, 若 $\Delta t$ 很短, 网络必须在较少 spike 的情况下完成可靠分类.
+
+本文的一个重要结果是, 训练后的 MNN/SNN 可以通过联合调节 mean firing rate 和 correlation structure 来降低 prediction uncertainty. 因此, 即使在较短读出时间内, 模型也能给出较可靠的分类结果.
+
+这个结果可以概括为
+
+\begin{center}
+    structured correlated variability $\Longrightarrow$ lower prediction uncertainty $\Longrightarrow$ faster inference.
+\end{center}
+
+这与前一篇关于 MLE decoding 的论文有相似思想. 前一篇说明随机 spike trains 并不妨碍快速解码, 只要使用合适的概率模型. 本文进一步说明, 神经网络甚至可以学习如何组织随机性, 使其服务于快速推断.
+
+\subsection{Loihi 硬件实验}
+
+文章还在 Intel Loihi neuromorphic hardware 上展示了该方法的应用. 由于 MNN 训练后的参数可以直接恢复为 SNN, 因而可以部署到神经形态硬件中运行.
+
+这一部分的意义在于, 本文方法不是只停留在理论层面的 moment equations, 而是可以落实到实际 spiking hardware. 对 neuromorphic computing 来说, 这说明基于随机脉冲活动和相关变异的学习框架有潜在工程价值.
+
+\section{与前两篇论文的联系}
+
+\subsection{三篇论文之间的逻辑关系}
+
+这三篇论文之间可以形成一条比较清楚的逻辑链.
+
+第一篇 \textit{Representations of the First Hitting Time Density of an Ornstein-Uhlenbeck Process} 主要解决 OU 过程首次到达时密度的数学表示问题. 它提供了级数表示、积分表示和 Bessel bridge 表示.
+
+第二篇 \textit{Maximum Likelihood Decoding of Neuronal Inputs from an Interspike Interval Distribution} 将 OU 首达时密度用于 LIF 神经元的 ISI 分布, 进而通过 maximum likelihood decoding 从 spike trains 中反推出输入率和输入方差.
+
+第三篇 \textit{Learning and Inference with Correlated Neural Variability} 则进一步把研究对象从单神经元或小规模神经元群体的解码, 推广到可训练的深层 SNN. 它不再只是从 spike trains 中估计输入参数, 而是让整个 SNN 在 correlated variability 下完成 supervised learning.
+
+可以概括为:
+
+\begin{center}
+    OU 首达时理论 $\Longrightarrow$ LIF 的 ISI 解码 $\Longrightarrow$ 带相关变异的 SNN 学习与推断.
+\end{center}
+
+从这个角度看, 第三篇论文是前两篇思想的自然延伸. 它同样重视神经系统中的随机性, 但关注点从 ``如何从随机 spike 中解码输入'' 转向 ``如何利用随机 spike 和相关变异完成学习与推断''.
+
+\subsection{与前一篇 MLE decoding 的比较}
+
+前一篇 MLE decoding 的核心统计对象是 ISI 分布 $p_{\lambda,r}(t)$. 它使用完整的 ISI density 来做输入参数估计. 本文的核心统计对象则是 spike count distribution $p(n)$, 并通过 moment closure 用 $(\mu,C)$ 来近似描述.
+
+二者的相同点是:
+
+\begin{enumerate}[(1)]
+    \item 都不把 spike variability 简单看成无用噪声.
+    \item 都试图建立严格的概率模型来处理神经脉冲的随机性.
+    \item 都强调短时间窗口内的可靠神经信息处理.
+\end{enumerate}
+
+二者的不同点是:
+
+\begin{enumerate}[(1)]
+    \item MLE decoding 主要做参数估计, MNN 主要做端到端学习.
+    \item MLE decoding 依赖 ISI distribution, MNN 依赖 spike count 的一阶矩和二阶矩.
+    \item MLE decoding 更接近统计推断问题, MNN 更接近深度学习和神经形态计算问题.
+\end{enumerate}
+
+\section{个人理解与评价}
+
+\subsection{本文的主要优点}
+
+我认为本文的主要优点有以下几点:
+
+\begin{enumerate}[(1)]
+    \item 它没有忽略 SNN 中的噪声, 而是把随机性作为计算的一部分.
+    \item 它把 SNN 中复杂的联合分布传播问题降维为一阶矩和二阶矩传播问题, 因而具有较好的可计算性.
+    \item 它自然连接了 SNN, MNN 和 ANN, 给出了一个比较清楚的统一视角.
+    \item 它不仅关注平均 firing rate, 还显式建模 covariance structure, 因而可以研究 correlated variability 的功能作用.
+    \item 它训练完成后可以直接恢复 SNN, 并可部署到 neuromorphic hardware 上, 具有工程意义.
+\end{enumerate}
+
+\subsection{本文的局限}
+
+本文也有一些可以继续思考的地方.
+
+第一, moment closure 只保留到二阶矩. 如果神经活动分布具有明显的高阶统计结构, 那么仅靠 $\mu$ 和 $C$ 可能不足以完整描述.
+
+第二, 文中主要展示的是 feedforward architecture 和 MNIST 分类任务. 对 recurrent SNN, 更复杂任务, 或更大规模网络, 该方法的稳定性与训练效率仍需进一步验证.
+
+第三, 虽然 MNN 可以恢复为 SNN, 但 moment activation 的计算本身依赖较复杂的数值方法和自定义梯度, 对初学者来说理解门槛较高.
+
+第四, 文章强调 correlated variability 可以有助于推断, 但不同任务中相关结构到底应如何组织, 仍需要更多理论分析和实验支持.
+
+\subsection{我的整体理解}
+
+这篇文章给我的最大启发是, 神经网络中的随机性不一定只是需要被平均掉的误差. 在合适的概率框架下, 随机性和相关变异本身可以成为计算资源.
+
+普通 ANN 的计算对象是确定向量, 前一篇 MLE decoding 的计算对象是 ISI density, 而本文的计算对象是神经群体 spike count 的矩. 这种从确定性向量到概率分布, 再到矩闭合表示的转变, 是理解生物启发智能的一个重要方向.
+
+\end{document}

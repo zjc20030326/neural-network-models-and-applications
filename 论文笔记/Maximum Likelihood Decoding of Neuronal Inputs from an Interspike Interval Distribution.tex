@@ -1,0 +1,557 @@
+\documentclass[oneside]{ctexart}
+\setlength{\headheight}{14pt}
+\usepackage{xcolor}
+\usepackage{enumerate}
+\usepackage{amsmath}
+\usepackage{tikz-cd}
+\usepackage{mathtools}
+\usepackage{amssymb}
+\usepackage{extarrows}
+\usepackage{amsthm}
+
+\newtheorem{definition}{定义}[section]
+\newtheorem{example}{例}[section]
+\newtheorem{theorem}{定理}[section]
+\newtheorem{axiom}{公理}[section]
+\newtheorem{lemma}{引理}[section]
+\newtheorem{proposition}{命题}[section]
+\newtheorem{corollary}{推论}[section]
+\newtheorem{remark}{注}[section]
+
+\DeclareMathOperator{\Tr}{Tr}
+\DeclareMathOperator{\tr}{tr}
+\DeclareMathOperator{\rank}{rank}
+\DeclareMathOperator{\diag}{diag}
+\DeclareMathOperator{\Ree}{Re}
+\DeclareMathOperator{\Imm}{Im}
+\DeclareMathOperator{\Ker}{Ker}
+
+\usepackage{arydshln}
+\usepackage{amsfonts}
+\usepackage{mathrsfs}
+\usepackage{bm}
+\usepackage[T1]{fontenc}
+\usepackage{fix-cm}
+\usepackage{lmodern}
+\usepackage{anyfontsize}
+\usepackage{graphicx}
+\usepackage[colorlinks=true, linkcolor=blue, urlcolor=blue, citecolor=blue]{hyperref}
+\usepackage{geometry}
+\geometry{
+    a4paper,
+    left=2.5cm,
+    right=2.5cm,
+    top=3cm,
+    bottom=2cm
+}
+
+\title{神经网络的模型与应用作业论文阅读笔记\\[0.6ex]
+\large \textit{Maximum Likelihood Decoding of Neuronal Inputs from an Interspike Interval Distribution}}
+\author{}
+\date{}
+
+\begin{document}
+
+\maketitle
+
+\section{论文主要内容与整体思路}
+
+本文研究如何从神经元输出脉冲的 interspike interval, 即 ISI, 分布中反推出输入信息. 文章的核心对象是 leaky integrate-and-fire, 即 LIF, 神经元. 作者先把 ISI 分布转化为 Ornstein-Uhlenbeck, 即 OU, 过程的首次到达时分布, 再利用 Bessel bridge 表示给出可数值实现的密度公式, 最后在此基础上构造最大似然估计.
+
+文章主线可以概括为以下几步:
+
+\begin{enumerate}[(1)]
+    \item 从带有兴奋性与抑制性 Poisson 突触输入的 LIF 模型出发, 通过扩散近似得到随机微分方程模型.
+    \item 将输出脉冲的 ISI 表示为某个 OU 过程到达阈值的首次到达时.
+    \item 利用 OU 首次到达时密度的 Bessel bridge 表示, 得到 ISI 密度 $p_{\lambda,r}(t)$ 的可计算表达式.
+    \item 基于精确的 ISI 密度构造似然函数, 对输入率 $\lambda$ 以及抑制与兴奋比率 $r$ 做最大似然估计.
+    \item 进一步讨论 Fisher 信息, 置信区间, 动态输入解码, 以及带相互作用神经元网络中的输入解码问题.
+\end{enumerate}
+
+从方法论上看, 这篇文章最重要的贡献不是重新建立一个新的神经元模型, 而是把随机过程中的首达时理论真正落实为一个可以执行的统计解码算法.
+
+\section{单个 LIF 神经元模型与 ISI 分布}
+
+\subsection{LIF 模型与扩散近似}
+
+当膜电位 $V(t)$ 尚未达到阈值 $V_{\mathrm{th}}$ 时, LIF 神经元满足
+
+\begin{equation}
+    dV=-\dfrac{V}{\gamma}\,dt+dI_{\mathrm{syn}}(t), \qquad V\leq V_{\mathrm{th}}.
+\end{equation}
+
+其中 $\gamma$ 是泄漏时间常数, 突触输入写为
+
+\begin{equation}
+    I_{\mathrm{syn}}(t)=a\sum\limits_{i=1}^{m}E_i(t)-b\sum\limits_{j=1}^{n}I_j(t).
+\end{equation}
+
+这里 $E_i(t)$ 与 $I_j(t)$ 分别表示兴奋性与抑制性输入 Poisson 过程, $a>0$ 与 $b>0$ 分别对应单次 EPSP 与 IPSP 的幅度.
+
+当输入神经元数量很多时, 可以采用扩散近似. 在文中进一步取 $V_{\mathrm{rest}}=0$, $a=b$, $m=n$, 得到简化模型
+
+\begin{equation}
+    dV=-\dfrac{V}{\gamma}\,dt+\mu\,dt+\sqrt{\sigma}\,dB_t, \qquad V\leq V_{\mathrm{th}},
+\end{equation}
+
+其中
+
+\begin{equation}
+    \mu=a\lambda(t)(1-r), \qquad \sigma=a^2\lambda(t)(1+r).
+\end{equation}
+
+这里 $\lambda(t)$ 表示总兴奋性输入率, $r\lambda(t)$ 表示总抑制性输入率, 因而 $r$ 可以理解为抑制输入与兴奋输入的相对强度.
+
+\subsection{精确平衡输入}
+
+若满足
+
+\begin{equation}
+    \mu(t)\gamma=V_{\mathrm{th}},
+\end{equation}
+
+则称输入为 exactly balanced input. 代入 $\mu=a\lambda(t)(1-r)$ 可得
+
+\begin{equation}
+    r(t)=1-\dfrac{V_{\mathrm{th}}}{a\lambda(t)\gamma}.
+\end{equation}
+
+这个关系说明, 当兴奋性输入越强时, 抑制性输入也必须随之增强, 才能维持系统在阈值附近的平衡状态. 文中强调, 过去已有工作只在这种平衡限制下讨论输入率估计. 本文的目标则是摆脱这一限制, 同时估计 $\lambda$ 与 $r$.
+
+\subsection{ISI 的定义}
+
+输出脉冲的一个 ISI 定义为
+
+\begin{equation}
+    T=\inf\{t>0:V(t)\geq V_{\mathrm{th}} \mid V(0)=0\}.
+\end{equation}
+
+更精确地说, 设
+
+\begin{equation}
+    \tau_i=\inf\{t>\tau_{i-1}:V(t)\geq V_{\mathrm{th}} \mid V(\tau_{i-1})=0\}, \qquad i\geq 1, \qquad \tau_0=0,
+\end{equation}
+
+并令
+
+\begin{equation}
+    T_i=\tau_i-\tau_{i-1}, \qquad i\geq 1.
+\end{equation}
+
+则 $\{T_i\}_{i\geq 1}$ 构成独立同分布序列, 且每个 $T_i$ 的分布都与 $T$ 相同.
+
+\subsection{转化为 OU 过程的首次到达时}
+
+令
+
+\begin{equation}
+    U=\dfrac{V-\mu\gamma}{\sqrt{\sigma}},
+\end{equation}
+
+则 $U$ 满足 OU 型随机微分方程
+
+\begin{equation}
+    dU=-\dfrac{U}{\gamma}\,dt+dB_t.
+\end{equation}
+
+此时初值与阈值分别变为
+
+\begin{equation}
+    U_{\mathrm{re}}=-\dfrac{\mu\gamma}{\sqrt{\sigma}}, \qquad U_{\mathrm{th}}=\dfrac{V_{\mathrm{th}}-\mu\gamma}{\sqrt{\sigma}}.
+\end{equation}
+
+因此, ISI 可以写为 OU 过程的首次到达时
+
+\begin{equation}
+    T=\inf\left\{t>0:U(t)\geq \dfrac{V_{\mathrm{th}}-\mu\gamma}{\sqrt{\sigma}} \,\middle|\, U(0)=-\dfrac{\mu\gamma}{\sqrt{\sigma}}\right\}.
+\end{equation}
+
+这一步是全文最关键的桥梁. 一旦完成这个变换, 神经元放电间隔的分布问题就转化为了经典的 OU 首达时问题.
+
+\subsection{Bessel bridge 表示的 ISI 密度}
+
+记 $p_{\lambda,r}(t)$ 为 ISI 的概率密度. 文中采用的是 OU 首达时密度的 Bessel bridge 表示, 即
+
+\begin{equation}
+    p_{\lambda,r}(t)
+    =
+    \exp\left(
+    -\dfrac{V_{\mathrm{th}}^2-2\mu\gamma V_{\mathrm{th}}}{2\gamma\sigma}
+    +
+    \dfrac{t}{2\gamma}
+    \right)
+    p^{(0)}(t)
+    \,
+    \mathbb{E}_{0\to V_{\mathrm{th}}}
+    \left[
+        \exp\left(
+        -\dfrac{1}{2\gamma^2\sigma}\int_0^t (v_s-V_{\mathrm{th}}+\mu\gamma)^2\,ds
+        \right)
+        \right].
+\end{equation}
+
+其中
+
+\begin{equation}
+    p^{(0)}(t)
+    =
+    \dfrac{V_{\mathrm{th}}}{\sqrt{2\pi\sigma t^3}}
+    \exp\left(
+    -\dfrac{V_{\mathrm{th}}^2}{2t\sigma}
+    \right)
+\end{equation}
+
+是无泄漏模型的 ISI 密度, 而 $\{v_s\}_{0\leq s\leq t}$ 是从 $0$ 到 $V_{\mathrm{th}}$ 的三维 Bessel bridge.
+
+相应地, $v_s$ 满足
+
+\begin{equation}
+    dv_s=
+    \left(
+    \dfrac{V_{\mathrm{th}}-v_s}{t-s}
+    +
+    \dfrac{\sigma}{v_s}
+    \right)\,ds
+    +
+    \sqrt{\sigma}\,dB_s, \qquad 0<s<t, \qquad v_0=0, \qquad v_t=V_{\mathrm{th}}.
+\end{equation}
+
+这个公式的重要意义在于, ISI 密度不再只是一个抽象的首达时分布, 而被写成了一个桥过程泛函的期望, 因而可以用 Monte Carlo 方法实现.
+
+\subsection{Monte Carlo 近似的基本思想}
+
+记
+
+\begin{equation}
+    f_1(t)
+    =
+    \exp\left(
+    \dfrac{-V_{\mathrm{th}}^2+2\mu\gamma V_{\mathrm{th}}}{2\gamma\sigma}
+    +
+    \dfrac{t}{2\gamma}
+    \right)
+    p^{(0)}(t).
+\end{equation}
+
+若把区间 $[0,t]$ 等分为 $n$ 份, 记 $\Delta t=\dfrac{t}{n}$, 并生成 $M$ 条独立 Bessel bridge 轨道, 则密度可近似为
+
+\begin{equation}
+    \bar{p}_{\lambda,r}(t)
+    =
+    f_1(t)\cdot
+    \dfrac{1}{M}
+    \sum\limits_{i=1}^{M}
+    \exp\left(
+    -\dfrac{1}{2\gamma^2\sigma}
+    \sum\limits_{k=1}^{n}
+    \left(
+    v^i(k\Delta t)-V_{\mathrm{th}}+\mu\gamma
+    \right)^2
+    \Delta t
+    \right).
+\end{equation}
+
+因此, 本文中所谓的 ``精确 ISI 密度'' 在实际计算中仍然通过数值模拟实现, 但它的理论基础已经从经验近似变成了严格的首达时密度表示.
+
+\section{最大似然解码策略}
+
+\subsection{似然函数的构造}
+
+设观测到 $N$ 个 ISI 样本 $T_1,\dots,T_N$, 且它们服从密度 $p_{\lambda,r}(t)$. 则似然函数定义为
+
+\begin{equation}
+    L(\lambda,r)=\prod\limits_{i=1}^{N}p_{\lambda,r}(T_i).
+\end{equation}
+
+对应的对数似然函数为
+
+\begin{equation}
+    \ln L(\lambda,r)=\sum\limits_{i=1}^{N}\ln p_{\lambda,r}(T_i).
+\end{equation}
+
+作者的解码思想非常直接: 输入信息就是使上述似然最大的参数对 $(\lambda,r)$.
+
+\subsection{得分方程}
+
+将上面的密度写成
+
+\begin{equation}
+    p_{\lambda,r}(t)=f_1(t)\,\mathbb{E}_{0\to V_{\mathrm{th}}}[f_2(t)],
+\end{equation}
+
+其中
+
+\begin{equation}
+    f_2(t)
+    =
+    \exp\left(
+    -\dfrac{1}{2\gamma^2\sigma}
+    \int_0^t
+    (v_s-V_{\mathrm{th}}+\mu\gamma)^2\,ds
+    \right).
+\end{equation}
+
+对于参数 $x\in\{\lambda,r\}$, 记
+
+\begin{equation}
+    h_x
+    =
+    \dfrac{V_{\mathrm{th}}^2\sigma_x^{'}}{2\sigma^2\gamma}
+    +
+    \dfrac{(\mu_x^{'}\sigma-\mu\sigma_x^{'})V_{\mathrm{th}}}{\sigma^2}
+    -
+    \dfrac{\sigma_x^{'}}{2\sigma},
+\end{equation}
+
+以及
+
+\begin{equation}
+    \Phi_x(t)
+    =
+    \dfrac{\partial}{\partial x}
+    \ln
+    \mathbb{E}_{0\to V_{\mathrm{th}}}[f_2(t)].
+\end{equation}
+
+则得分函数可以写成
+
+\begin{equation}
+    \dfrac{\partial \ln L}{\partial x}
+    =
+    N h_x
+    +
+    \dfrac{V_{\mathrm{th}}^2\sigma_x^{'}}{2\sigma^2}
+    \sum\limits_{i=1}^{N}T_i^{-1}
+    +
+    \sum\limits_{i=1}^{N}\Phi_x(T_i), \qquad x\in\{\lambda,r\}.
+\end{equation}
+
+最优估计 $(\hat{\lambda},\hat{r})$ 满足
+
+\begin{equation}
+    \dfrac{\partial \ln L}{\partial \lambda}=0, \qquad
+    \dfrac{\partial \ln L}{\partial r}=0.
+\end{equation}
+
+也就是说, 作者最后把解码问题化成了一个二维非线性方程组的求根问题.
+
+\subsection{导数过程的数值实现}
+
+由于 $\Phi_x(t)$ 中涉及对 Bessel bridge 泛函期望的求导, 作者进一步考虑导数过程
+
+\begin{equation}
+    w_s^x=\dfrac{\partial v_s}{\partial x}, \qquad x\in\{\lambda,r\}.
+\end{equation}
+
+它满足如下随机微分方程
+
+\begin{equation}
+    dw_s^x
+    =
+    \left(
+    -\dfrac{w_s^x}{t-s}
+    +
+    \dfrac{\sigma_x^{'}}{v_s}
+    -
+    \dfrac{\sigma}{v_s^2}w_s^x
+    \right)\,ds
+    +
+    \dfrac{\sigma_x^{'}}{2\sqrt{\sigma}}\,dB_s.
+\end{equation}
+
+因此, 不仅密度本身可以通过 Monte Carlo 近似, 似然函数的梯度也同样可以通过路径模拟近似. 这一步保证了 MLE 在数值上是可操作的.
+
+\section{Fisher 信息与统计推断}
+
+\subsection{Fisher 信息矩阵}
+
+有了对数似然函数后, 就可以进一步讨论估计量的统计精度. 单个样本对应的 Fisher 信息矩阵定义为
+
+\begin{equation}
+    I_1(\lambda,r)
+    =
+    \begin{pmatrix}
+        \mathbb{E}\left[\left(\dfrac{\partial \ln p_{\lambda,r}(t)}{\partial \lambda}\right)^2\right]
+         &
+        \mathbb{E}\left[\dfrac{\partial \ln p_{\lambda,r}(t)}{\partial \lambda}\dfrac{\partial \ln p_{\lambda,r}(t)}{\partial r}\right]
+        \\[1.2ex]
+        \mathbb{E}\left[\dfrac{\partial \ln p_{\lambda,r}(t)}{\partial \lambda}\dfrac{\partial \ln p_{\lambda,r}(t)}{\partial r}\right]
+         &
+        \mathbb{E}\left[\left(\dfrac{\partial \ln p_{\lambda,r}(t)}{\partial r}\right)^2\right]
+    \end{pmatrix}.
+\end{equation}
+
+若样本量为 $N$, 则总 Fisher 信息为
+
+\begin{equation}
+    I(\lambda,r)=NI_1(\lambda,r).
+\end{equation}
+
+\subsection{渐近正态性与置信区间}
+
+当样本量足够大时, 最大似然估计量满足渐近正态性
+
+\begin{equation}
+    (\hat{\lambda},\hat{r})
+    \approx
+    \mathcal{N}\left(
+    (\lambda,r),
+    I(\lambda,r)^{-1}
+    \right).
+\end{equation}
+
+因此, 两个参数的置信区间可近似写为
+
+\[
+    \left[
+        \lambda-\sqrt{(I(\lambda,r)^{-1})_{11}},
+        \lambda+\sqrt{(I(\lambda,r)^{-1})_{11}}
+        \right],
+\]
+
+\[
+    \left[
+        r-\sqrt{(I(\lambda,r)^{-1})_{22}},
+        r+\sqrt{(I(\lambda,r)^{-1})_{22}}
+        \right].
+\]
+
+这说明本文不仅给出了一个点估计方法, 还给出了估计误差的量化方式. 这比单纯报告一个 ``估计值'' 要更完整, 也更符合统计推断的要求.
+
+\subsection{与 rate decoding 的比较}
+
+作者还把 MLE 与传统的 rate decoding 方法做了比较. 后者通常根据输出脉冲的 firing rate 与变异系数来反推输入. 文章指出, 当样本量很大时, 两种方法都能工作. 但从参数估计理论看, MLE 具有明显优势, 因为它能够达到 Cram\'{e}r-Rao 下界, 而 rate decoding 一般不能.
+
+从我的理解看, 这里的关键不在于 ``MLE 一定神奇'', 而在于本文真正使用了完整的 ISI 密度. 既然完整分布已经可得, 那么最大似然自然比只使用前两阶矩的信息更充分.
+
+\section{动态输入与网络层面的解码}
+
+\subsection{无相互作用网络中的动态输入解码}
+
+作者接着讨论动态输入情形. 基本假设是, 输入变化得比神经元内部动力学慢得多, 因而在每个长度为 $T_W$ 的时间窗内, ISI 分布都可以近似看成静态分布.
+
+文中给出的一个输入波形例子为
+
+\begin{equation}
+    \lambda(t)=2+4\left(\sin^2(2\pi t)+\sin^2\left(\dfrac{3\pi t}{2}\right)\right).
+\end{equation}
+
+在每个时间窗内, 从一个神经元群收集 spike trains, 由这些脉冲形成 ISI 样本, 再用前述 MLE 反推出该时间窗里的输入率. 文章数值结果表明, 即使时间窗短到 $T_W=25\,\mathrm{msec}$, 估计效果仍然相当好.
+
+作者还提到一个细节: 若某个 ISI 比时间窗还长, 那么它就会被截断, 这会带来类似 survival analysis 中的删失问题. 文中为了突出主要思想, 直接忽略了这类删失引起的偏差, 数值上看到该偏差并不大.
+
+\subsection{带相互作用网络中的模型}
+
+进一步地, 文章讨论含有神经元相互作用的网络. 对第 $j$ 个神经元, 膜电位满足
+
+\begin{equation}
+    \dfrac{dV_j}{dt}
+    =
+    -\dfrac{V_j}{\gamma}
+    +
+    I_j^{E}(t)
+    +
+    I_j^{S}(t),
+    \qquad
+    V_j\leq V_{\mathrm{th}},
+    \qquad
+    j=1,2,\dots,N_n.
+\end{equation}
+
+其中外部输入与网络内部输入分别写成
+
+\begin{equation}
+    \begin{cases}
+        I_j^{E}(t)=a\lambda_j(t)+a\sqrt{\lambda_j(t)}\,\xi_j(t), \\[1.2ex]
+        I_j^{S}(t)=
+        \sum\limits_{k=1}^{P_E}\sum\limits_{t_k^m+\tau<t}w_{jk}^{E}\delta(t-t_k^m-\tau)
+        -
+        r_{EI}\sum\limits_{l=1}^{P_I}\sum\limits_{t_l^m+\tau<t}w_{jl}^{I}\delta(t-t_l^m-\tau).
+    \end{cases}
+\end{equation}
+
+这里 $\tau$ 是突触传递延迟, $r_{EI}$ 是抑制与兴奋作用强度的比率, $w_{jk}^{E}$ 与 $w_{jl}^{I}$ 分别表示兴奋性和抑制性连接权重.
+
+\subsection{局部抑制, 节律与解码}
+
+文章发现, 当局部抑制与突触延迟共同作用时, 网络会出现明显的节律活动. 其直观机制是这样的: 外部输入先驱动一批神经元发放, 随后抑制性神经元发放并通过延迟传递使其他神经元超极化, 于是网络会经历一段相对沉寂期. 在这段沉寂期之后, 外部输入再次占主导, 产生下一轮放电.
+
+在这种网络中, ISI 直方图通常会出现两个峰. 短 ISI 峰主要对应外部输入真正驱动出来的信息性放电, 长 ISI 峰则更多来自网络内部相互作用. 因此作者提出, 在解码输入时应先滤掉第二个峰, 只保留第一模式对应的 ISI 样本用于 MLE.
+
+这个处理非常有启发性. 它说明在含相互作用网络里, 并不是所有 spike 都同等有用. 若不先区分 ``外部输入信息'' 与 ``网络内部节律'', 解码会受到明显干扰.
+
+\subsection{位置追踪问题}
+
+最后, 作者还把方法推广到位置追踪问题. 将神经元分成若干列, 每一列都共享一个 tuning curve
+
+\begin{equation}
+    \lambda(x_i;x(t))
+    =
+    \lambda_0
+    +
+    c\lambda_0
+    \exp\left(
+    -\dfrac{(x(t)-x_i)^2}{2d^2}
+    \right),
+\end{equation}
+
+其中 $x_i$ 是第 $i$ 列神经元偏好的位置中心, $x(t)$ 是真实刺激位置, $d$ 是 tuning width.
+
+在每个时间窗中, 先通过 MLE 得到各列对应的输入率估计, 再反推位置信息. 结果表明, 即使在存在局部相互作用的网络中, 位置追踪依然可以保持较高精度.
+
+这一部分说明本文的方法不只是 ``估计单个参数'', 而是可以嵌入更高层的神经编码问题中, 比如 stimulus tracking 和 population decoding.
+
+\section{与参考论文的联系及个人理解}
+
+\subsection{与 OU 首达时密度论文的关系}
+
+这篇文章与参考论文 \textit{Representations of the First Hitting Time Density of an Ornstein-Uhlenbeck Process} 的关系非常紧密.
+
+参考论文的主要任务是回答一个随机过程问题: OU 过程首次到达固定边界的密度如何表示. 它给出了三种核心表达:
+
+\begin{enumerate}[(1)]
+    \item 基于抛物柱函数零点的级数表示.
+    \item 基于解析延拓与余弦反演的积分表示.
+    \item 基于三维 Bessel bridge 泛函的概率表示.
+\end{enumerate}
+
+而本文的主要工作则是把这一首达时理论嵌入到神经科学问题中. 由于 LIF 神经元的 ISI 恰好可以转化为 OU 过程的首达时, 所以参考论文中的首达时密度公式就直接变成了本文中的 ISI 密度公式.
+
+从这个角度看, 两篇文章的关系可以概括为:
+
+\begin{center}
+    ``OU 首达时密度理论'' $\Longrightarrow$ ``LIF 神经元 ISI 精确分布'' $\Longrightarrow$ ``最大似然输入解码''.
+\end{center}
+
+因此, 本文真正新颖的地方不在于重新证明 OU 首达时公式, 而在于把该公式推进到统计推断与神经编码层面.
+
+\subsection{本文的主要优点}
+
+我认为本文至少有以下几个优点:
+
+\begin{enumerate}[(1)]
+    \item 它不是依赖 firing rate 或 CV 这样的粗摘要量, 而是使用完整的 ISI 密度, 因此统计效率更高.
+    \item 它不仅估计输入率 $\lambda$, 还可以同时估计输入均值和方差所对应的参数, 即 $\lambda$ 与 $r$.
+    \item 它能够从静态输入推广到动态输入, 再推广到具有局部相互作用的神经元群体.
+    \item 它把随机过程理论, 数值模拟与统计推断结合得非常自然, 是一篇典型的跨学科工作.
+\end{enumerate}
+
+\subsection{本文的局限与可以继续思考的问题}
+
+当然, 本文也有一些限制.
+
+第一, 整个方法依赖扩散近似, 即把大量离散突触输入近似成连续噪声. 当单个突触事件不能忽略时, 这种近似未必准确.
+
+第二, 动态输入部分使用了 adiabatic assumption, 即认为在短时间窗内输入几乎不变. 若输入变化过快, 该假设可能失效.
+
+第三, 在含相互作用网络中, 作者通过 ``滤掉第二模式'' 的方法来提取真正携带外部信息的 ISI. 这个步骤在数值上很有效, 但从理论上说仍然带有一定经验性.
+
+第四, 文中考虑的是相对规则的局部抑制网络. 若网络结构更复杂, 或存在更强的时间相关性与层级耦合, 则如何构造可行的似然函数仍是一个开放问题.
+
+\subsection{我的整体理解}
+
+这篇文章给我的最大启发是, 神经元脉冲虽然看起来十分随机, 但只要我们掌握了其产生机制所对应的精确概率分布, 随机性本身并不会妨碍解码, 反而可以被纳入一个严格的统计框架.
+
+换句话说, 本文的核心思想不是 ``消除噪声'', 而是 ``理解噪声的分布结构''. 一旦 ISI 分布被精确掌握, 最大似然估计就能把随机 spike trains 转化为可靠的输入信息读出. 这也是为什么本文虽然数学上依赖 OU 首达时理论, 但目标始终指向神经编码与信息解码问题.
+
+\end{document}

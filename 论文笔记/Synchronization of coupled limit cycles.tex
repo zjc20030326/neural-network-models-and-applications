@@ -1,0 +1,370 @@
+\documentclass[oneside]{ctexart}
+\setlength{\headheight}{14pt}
+\usepackage{xcolor}
+\usepackage{enumerate}
+\usepackage{amsmath}
+\usepackage{tikz-cd}
+\usepackage{mathtools}
+\usepackage{amssymb}
+\usepackage{extarrows}
+\usepackage{amsthm}
+
+\newtheorem{definition}{定义}[section]
+\newtheorem{example}{例}[section]
+\newtheorem{theorem}{定理}[section]
+\newtheorem{axiom}{公理}[section]
+\newtheorem{lemma}{引理}[section]
+\newtheorem{proposition}{命题}[section]
+\newtheorem{corollary}{推论}[section]
+\newtheorem{remark}{注}[section]
+
+\DeclareMathOperator{\Tr}{Tr}
+\DeclareMathOperator{\tr}{tr}
+\DeclareMathOperator{\rank}{rank}
+\DeclareMathOperator{\diag}{diag}
+\DeclareMathOperator{\Ree}{Re}
+\DeclareMathOperator{\Imm}{Im}
+\DeclareMathOperator{\Ker}{Ker}
+\DeclareMathOperator{\Span}{span}
+
+\usepackage{arydshln}
+\usepackage{amsfonts}
+\usepackage{mathrsfs}
+\usepackage{bm}
+\usepackage[T1]{fontenc}
+\usepackage{fix-cm}
+\usepackage{lmodern}
+\usepackage{anyfontsize}
+\usepackage{graphicx}
+\usepackage[colorlinks=true, linkcolor=blue, urlcolor=blue, citecolor=blue]{hyperref}
+\usepackage{geometry}
+\geometry{
+    a4paper,
+    left=2.5cm,
+    right=2.5cm,
+    top=3cm,
+    bottom=2cm
+}
+\newcommand{\dd}{\mathrm{d}}
+\newcommand{\eps}{\varepsilon}
+
+\title{神经网络的模型与应用作业论文阅读笔记\\[0.6ex]
+\large \textit{Synchronization of Coupled Limit Cycles}}
+\author{}
+\date{}
+
+\begin{document}
+
+\maketitle
+
+\section{论文基本信息与主要问题}
+
+本文作者为 Georgi S. Medvedev, 发表在 \textit{Journal of Nonlinear Science}. 文章研究的是由多个自治微分方程系统耦合而成的网络, 在什么条件下会出现同步的极限环. 这里的同步不是单个振子周期运动本身的稳定性, 而是许多振子在耦合后是否会收敛到同一个周期运动.
+
+文章的核心问题可以写成如下形式. 单个局部系统为
+
+\begin{equation}
+    \dot{x}=f(x), \qquad x\in \mathbb{R}^n.
+\end{equation}
+
+假设该系统有一个稳定周期解 $u(t)$. 由 $N$ 个相同局部系统组成的耦合系统写成
+
+\begin{equation}
+    \dot{x}=F(x)+g\mathcal{D}x,
+\end{equation}
+
+其中 $g>0$ 表示耦合强度. 文章特别考虑可分离耦合
+
+\begin{equation}
+    \mathcal{D}=D\otimes L.
+\end{equation}
+
+这里 $D$ 描述不同振子之间的网络拓扑, 而 $L$ 描述单个振子内部哪些变量参与耦合. 文章的目标是给出一个充分条件, 保证同步解
+
+\begin{equation}
+    x(t)=\mathbf{1}_N\otimes u(t)
+\end{equation}
+
+是指数稳定的.
+
+这篇文章的主线可以概括为以下几步:
+
+\begin{enumerate}[(1)]
+    \item 先在单个极限环附近建立移动坐标系, 把相位方向和横向方向分开.
+    \item 再把耦合系统也写到相位差和横向偏差的坐标中.
+    \item 利用耦合矩阵的耗散性控制不同振子之间的差异.
+    \item 对于全变量耦合, 强耦合本身已经足够给出稳定性; 对于部分变量耦合, 还需要局部极限环的几何性质配合.
+    \item 最后用线性化稳定性加非线性扰动估计证明同步极限环指数稳定.
+\end{enumerate}
+
+从整体上看, 本文不是针对某一个特殊模型写 Lyapunov 函数, 而是给出一个较一般的同步判据. 这也是它与很多具体神经元模型或物理模型文章的主要区别.
+
+\section{局部极限环附近的移动坐标}
+
+\subsection{相位变量与横向变量}
+
+设单个局部系统有周期为 $1$ 的周期解 $u(t)$, 且 $\dot{u}(t)\neq 0$. 在极限环附近, 文章引入一个正交移动标架
+
+\begin{equation}
+    \{v(\theta),z_1(\theta),\dots,z_{n-1}(\theta)\},
+    \qquad
+    v(\theta)=\dfrac{\dot{u}(\theta)}{|\dot{u}(\theta)|}.
+\end{equation}
+
+这里 $v(\theta)$ 是沿着极限环切向的单位向量, 而 $z_1(\theta),\dots,z_{n-1}(\theta)$ 张成横向方向. 在极限环附近, 可以写
+
+\begin{equation}
+    x=u(\theta)+Z(\theta)\rho,
+    \qquad
+    Z(\theta)=\operatorname{col}(z_1(\theta),\dots,z_{n-1}(\theta)).
+\end{equation}
+
+其中 $\theta$ 是相位变量, $\rho$ 是离开极限环的横向变量. 这个坐标分解的意义是: 同步问题可以分成两个部分, 一个是不同振子相位是否靠拢, 另一个是每个振子是否留在极限环附近.
+
+\subsection{局部系统在新坐标下的形式}
+
+在上述坐标中, 局部系统可以写成
+
+\begin{equation}
+    \dot{\theta}=1+a^T(\theta)\rho+O(|\rho|^2),
+\end{equation}
+
+\begin{equation}
+    \dot{\rho}=A(\theta)\rho+O(|\rho|^2).
+\end{equation}
+
+其中
+
+\begin{equation}
+    a^T(\theta)=2\dfrac{v^T(\theta)}{|f(u(\theta))|}\left(Df(u(\theta))\right)^s Z(\theta),
+\end{equation}
+
+\begin{equation}
+    A(\theta)=Z^T(\theta)Df(u(\theta))Z(\theta)-Z^T(\theta)Z'(\theta).
+\end{equation}
+
+这里 $M^s=\dfrac{1}{2}(M+M^T)$ 表示矩阵的对称部分.
+
+这个表达式说明, 在极限环附近, 切向相位的主导运动是匀速运动 $\dot{\theta}=1$, 横向方向由线性周期系统 $\dot{\rho}=A(\theta)\rho$ 控制. 因此极限环的稳定性可以通过 $A(\theta)$ 的性质刻画.
+
+\subsection{局部极限环稳定性条件}
+
+文章令 $\mu_1(\theta)$ 表示 $A^s(\theta)$ 的最大特征值, 并假设
+
+\begin{equation}
+    \int_0^1 \mu_1(\theta)\,\dd \theta=-\mu<0.
+\end{equation}
+
+这个条件的直观含义是: 横向方向在一个周期内的平均效应是收缩的. 注意, 这里并不要求每一时刻都收缩. 某些时刻可以有局部膨胀, 只要整个周期平均下来是收缩的, 极限环仍然可以指数稳定.
+
+\begin{remark}
+    这一点在神经元或生物振子模型中很重要. 因为真实模型的线性化系数往往随时间变化, 不能简单要求每个时刻都负定. 本文使用的是周期平均意义下的收缩条件.
+\end{remark}
+
+\section{耦合结构与同步解的存在性}
+
+\subsection{可分离耦合的含义}
+
+耦合系统写成
+
+\begin{equation}
+    \dot{x}^{(i)}=f(x^{(i)})+g\sum_{j=1}^N d_{ij}Lx^{(j)},
+    \qquad i=1,2,\dots,N.
+\end{equation}
+
+可分离耦合 $D\otimes L$ 有两个层次:
+
+\begin{enumerate}[(1)]
+    \item $D$ 是网络层面的耦合矩阵, 说明第 $i$ 个振子和第 $j$ 个振子之间如何连接.
+    \item $L$ 是局部变量层面的耦合矩阵, 说明单个振子的哪些分量参与耦合.
+\end{enumerate}
+
+例如, 对一个二维神经元模型, 若只通过膜电位耦合而不通过恢复变量或钙浓度耦合, 那么 $L$ 可能是半正定但不满秩的矩阵. 这就是本文所谓的 partial coupling.
+
+\subsection{同步解存在的条件}
+
+若要让
+
+\begin{equation}
+    x(t)=\mathbf{1}_N\otimes u(t)
+\end{equation}
+
+成为耦合系统的解, 至少要有
+
+\begin{equation}
+    D\mathbf{1}_N=0.
+\end{equation}
+
+文章进一步假设
+
+\begin{equation}
+    \Ker D=\Span\{\mathbf{1}_N\}.
+\end{equation}
+
+这相当于网络是连通的, 不存在多个互不相干的同步分量.
+
+为了分析稳定性, 文章引入差分矩阵
+
+\begin{equation}
+    S=
+    \begin{pmatrix}
+        -1&1&0&\cdots&0\\
+        0&-1&1&\cdots&0\\
+        \vdots&\vdots&\vdots&\ddots&\vdots\\
+        0&0&0&\cdots&1
+    \end{pmatrix},
+\end{equation}
+
+并通过
+
+\begin{equation}
+    SD=\widehat{D}S
+\end{equation}
+
+定义 $\widehat{D}$. 如果
+
+\begin{equation}
+    y^T\widehat{D}y<0,\qquad y\neq 0,
+\end{equation}
+
+则称 $D$ 是耗散的. 直观上, $Sx$ 表示相邻振子之间的差异, 而 $\widehat{D}$ 控制这种差异是否衰减.
+
+\section{全耦合与部分耦合}
+
+\subsection{全耦合情形}
+
+若 $L$ 正定, 文章称耦合为 full coupling. 这时局部系统的所有方向都直接受到耦合的耗散作用. 因此, 只要 $D$ 是耗散的, 并且耦合强度 $g$ 足够大, 同步解就会稳定.
+
+这个结论的直观解释是: 强耦合会把各振子之间的差异直接压下去. 由于每个局部极限环本身已经横向稳定, 所以整体同步极限环也稳定.
+
+\subsection{部分耦合情形}
+
+若 $L$ 只是半正定而不正定, 则称为 partial coupling. 这时 $\Ker L$ 中的方向不会被耦合直接控制. 这些方向是否稳定, 取决于局部极限环动力学和耦合方向之间的几何关系.
+
+文章设 $\{p_1,
+\dots,p_l\}$ 是 $\Ker L$ 的一组正交基, 再定义与局部极限环相关的矩阵 $G(t)$. 若 $\lambda_1(t)$ 是 $G(t)$ 的最大特征值, 文章要求
+
+\begin{equation}
+    \int_0^1 \lambda_1(t)\,\dd t<0.
+\end{equation}
+
+这个条件说明, 虽然某些方向不能被耦合矩阵 $L$ 直接作用, 但它们可以通过局部系统自身的动力学被间接耗散掉.
+
+\subsection{主定理}
+
+文章的主要结论可以概括如下:
+
+\begin{theorem}
+    假设局部极限环满足周期平均横向收缩条件, 耦合算子可分离为 $D\otimes L$, 其中 $D$ 是耗散矩阵, $L$ 是半正定矩阵. 若耦合为部分耦合, 再假设上述关于 $G(t)$ 的平均负性条件成立. 那么当耦合强度 $g$ 足够大时, 耦合系统存在指数稳定的同步极限环.
+\end{theorem}
+
+这个定理的重点是把同步稳定性分成三个来源:
+
+\begin{enumerate}[(1)]
+    \item 局部极限环本身的横向稳定性.
+    \item 网络耦合矩阵 $D$ 对振子差异的耗散性.
+    \item 局部耦合矩阵 $L$ 与极限环几何结构之间的匹配关系.
+\end{enumerate}
+
+\section{证明思路}
+
+\subsection{平均相位与相位差}
+
+在耦合系统中, 每个振子都有自己的相位 $\theta^{(i)}$ 和横向变量 $\rho^{(i)}$. 文章引入平均相位
+
+\begin{equation}
+    \vartheta=\xi^T\theta,
+    \qquad
+    \xi\in \Ker D^T,
+    \qquad
+    \sum_{i=1}^N \xi_i=1.
+\end{equation}
+
+同时令
+
+\begin{equation}
+    \phi=S\theta,\qquad r=(S\otimes I_{n-1})\rho.
+\end{equation}
+
+其中 $\phi$ 表示相位差, $r$ 表示横向差. 同步稳定性等价于证明 $\phi$ 与 $r$ 都趋于 $0$, 同时横向平均变量也受局部极限环稳定性控制.
+
+\subsection{线性化后的关键结构}
+
+经过一系列坐标变换后, 差异变量满足类似
+
+\begin{equation}
+    \dfrac{\dd y}{\dd \vartheta}=B(\vartheta)y+Q(y,\zeta),
+\end{equation}
+
+其中
+
+\begin{equation}
+    B(\vartheta)=gB_0(\vartheta)+B_1(\vartheta).
+\end{equation}
+
+这里 $gB_0$ 是强耦合带来的主导项, $B_1$ 来自局部动力学的线性化修正. 在全耦合时, $B_0$ 已经在所有差异方向上半负定并且无非平凡核, 所以强耦合可以直接压制差异. 在部分耦合时, $B_0$ 有零方向, 这时必须看 $B_1$ 在这些零方向上的平均作用, 也就是前面提到的 $G(t)$ 条件.
+
+\subsection{从线性稳定到非线性稳定}
+
+文章先证明线性周期系统
+
+\begin{equation}
+    \dot{y}=B(t)y
+\end{equation}
+
+的基本解矩阵满足指数衰减估计
+
+\begin{equation}
+    \|\Phi(t,s)\|\leq C\exp(-\lambda(t-s)),
+    \qquad t\geq s.
+\end{equation}
+
+再把非线性余项看成小扰动, 用变常数公式和 Gronwall 型估计证明小邻域内的解仍然指数衰减. 因此同步极限环是指数稳定的.
+
+\begin{remark}
+    证明中最关键的不是某个复杂计算, 而是变量选择. 只要把平均相位, 相位差和横向差分清楚, 耦合矩阵的耗散性才会以清晰的方式出现.
+\end{remark}
+
+\section{三个例子的作用}
+
+\subsection{径向对称振子}
+
+第一个例子使用二维径向对称极限环. 这个例子的优点是所有量都可以显式算出来. 即使 $L$ 只有一维作用方向, 只要 $L$ 非零且半正定, 仍然可以验证部分耦合条件. 这个例子说明, 部分耦合并不必然破坏同步.
+
+\subsection{Consensus protocol}
+
+第二个例子把 $D$ 的耗散性与多智能体系统中的 consensus protocol 联系起来. 系统
+
+\begin{equation}
+    \dot{x}^{(i)}=\sum_{j=1}^N d_{ij}(x^{(j)}-x^{(i)})
+\end{equation}
+
+是否收敛到一致状态, 本质上由 $D$ 是否耗散决定. 因此, 本文的同步条件可以看作把 consensus 的思想推广到具有内部极限环动力学的振子网络.
+
+\subsection{神经元 compartmental model}
+
+第三个例子是 dopamine neuron 的 compartmental model. 每个 compartment 有膜电位 $v^{(i)}$ 和钙浓度 $u^{(i)}$. 耦合项可以写成电流扩散和钙扩散. 若两个变量都耦合, 是 full coupling; 若忽略钙扩散, 则变成 partial coupling.
+
+该例子中很多稳定性条件很难解析验证, 所以文章采用数值方式计算一个周期内最大特征值的积分. 结果显示, 即使某些时刻最大特征值为正, 只要周期平均为负, 同步仍然可以稳定.
+
+\section{个人理解与评价}
+
+\subsection{本文的主要贡献}
+
+我认为本文的贡献主要有三点:
+
+\begin{enumerate}[(1)]
+    \item 它把同步稳定性写成了局部极限环几何与耦合算子性质的组合条件, 比单个模型的 Lyapunov 分析更一般.
+    \item 它清楚地区分了 full coupling 和 partial coupling, 说明部分耦合时同步不只取决于网络, 还取决于耦合变量与极限环几何之间的关系.
+    \item 它把强耦合情形下的同步分析与相位约化联系起来, 提供了不同于弱耦合 Kuramoto 理论的思路.
+\end{enumerate}
+
+\subsection{本文的局限}
+
+本文的结论是充分条件, 不是必要条件. 因此, 不满足这些假设的系统不一定不同步, 只是本文的方法无法保证. 另外, 文章主要处理线性可分离耦合和相同局部系统. 若耦合是非线性的, 有时滞的, 或各振子参数不完全一致, 则需要额外分析.
+
+\subsection{我的整体理解}
+
+这篇文章给我的最大启发是, 同步不是单纯由 ``耦合很强'' 决定的. 强耦合提供了压制差异的机制, 但如果耦合没有作用到某些关键方向, 那么局部系统自身的几何结构就会变得重要. 因此, 在神经网络或生物振子模型中, 只看网络拓扑是不够的, 还要看每个节点内部变量如何参与耦合.
+
+\end{document}
